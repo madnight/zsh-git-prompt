@@ -5,6 +5,10 @@ import System.IO.Unsafe (unsafeInterleaveIO)
 import Utils (stringsFromStatus, Hash(MkHash))
 import Data.Maybe (fromMaybe)
 
+import Data.Git (findRepo)
+import System.Posix.IO (stdInput)
+import System.Posix.Terminal (queryTerminal)
+
 {- Git commands -}
 
 successOrNothing :: (ExitCode, a, b) -> Maybe a
@@ -23,7 +27,16 @@ gitrevparse = do
 
 main :: IO ()
 main = do
-    status <- getContents
-    -- defer the execution until we know we need the hash
+    repo <- findRepo
+    isTTY <- queryTerminal stdInput
     mhash <- unsafeInterleaveIO gitrevparse
-    putStr . fromMaybe mempty $ unwords <$> stringsFromStatus mhash status
+    let parse = putStr .  maybe mempty unwords . stringsFromStatus mhash
+    if isTTY
+        then do -- run status command
+            status <- safeRun "git" ["status", "--porcelain", "--branch"]
+            case status of
+                Nothing -> error "fatal: not a git repository"
+                Just s -> parse s
+        else do -- get status from stdin
+            status <- getContents
+            parse status
