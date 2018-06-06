@@ -14,6 +14,7 @@ import System.Posix.Terminal (queryTerminal)
 import System.Directory (doesFileExist)
 import System.FilePath ((</>))
 import Data.Maybe (fromMaybe)
+import Data.Char (isSpace)
 
 import qualified Control.Exception.Base as E
 
@@ -38,11 +39,28 @@ getStashCount repo = countLinesInFile $ repo </> "logs" </> "refs" </> "stash"
     where
         countLinesInFile :: String -> IO Int
         countLinesInFile f = length . lines <$> E.catch (readFile f) readHandler
-        readHandler :: IOError -> IO String
-        readHandler _ = pure mempty
+
+readHandler :: IOError -> IO String
+readHandler _ = pure mempty
+
+-- | Determine the rebase status of this repostitory and return it.
+-- | Args: git root
+-- | Returns:
+-- |    - "0": No active rebase
+-- |    - "1/4": Rebase in progress, commit 1 of 4
+rebaseProgess :: FilePath -> IO String
+rebaseProgess repo = do
+            let readRebase = readFile . ((repo </> "rebase-apply") </>)
+            next <- E.catch (readRebase "next") readHandler
+            last <- E.catch (readRebase "last") readHandler
+            if length (last ++ next) < 1
+                then pure "0"
+                else pure $ strip last ++ "/" ++ strip next
+            where
+                strip = reverse . dropWhile isSpace . reverse
 
 isMergeInProgess :: FilePath -> IO Bool
-isMergeInProgess repo = doesFileExist $ repo </> "MERGE_HEAD"
+isMergeInProgess = doesFileExist . (</> "MERGE_HEAD")
 
 fromBool :: Num a => Bool -> a
 fromBool False  = 0
@@ -54,6 +72,7 @@ parse status = do
     let repo = fromMaybe mempty maybeRepo
     stashCount <- getStashCount repo
     merge <- isMergeInProgess  repo
+    rebase <- rebaseProgess repo
     mhash <- unsafeInterleaveIO gitrevparse
     let parseStatus =  maybe mempty unwords . stringsFromStatus mhash
     let echo = putStr . (' ' :) . show
@@ -75,7 +94,7 @@ parse status = do
     echo $ fromBool merge
     -- 11. rebase indicator, format m/n, m is the current commit we are checked
     --     out on to resolve /  n is the total no of commits to, 0 otherwise.
-    -- TODO implement
+    putStr $ " " ++ rebase
 
 main :: IO ()
 main = do
