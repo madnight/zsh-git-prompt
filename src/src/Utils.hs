@@ -3,13 +3,35 @@ module Utils where
 import BranchParse (Branch(MkBranch), MBranchInfo, BranchInfo(MkBranchInfo), branchInfo, getDistance, pairFromDistance, Remote)
 import StatusParse (Status(MakeStatus), processStatus)
 
+import System.Process (readProcessWithExitCode)
+import System.Exit (ExitCode(ExitSuccess))
+import System.IO.Unsafe (unsafeInterleaveIO)
+import Data.Char (isSpace)
+
 {- Type aliases -}
 
 newtype Hash = MkHash {getHash :: String}
 
 data GitInfo = MkGitInfo MBranchInfo (Status Int)
 
-{- Combining branch and status parsing -}
+fromBool :: Bool -> Integer
+fromBool False  = 0
+fromBool True   = 1
+
+readHandler :: IOError -> IO String
+readHandler _ = pure mempty
+
+strip :: String -> String
+strip = reverse . dropWhile isSpace . reverse
+
+successOrNothing :: (ExitCode, a, b) -> Maybe a
+successOrNothing (exitCode, output, _)
+    | exitCode == ExitSuccess = Just output
+    | otherwise = Nothing
+
+safeRun :: String -> [String] -> IO (Maybe String)
+safeRun cmd args =
+    successOrNothing <$> readProcessWithExitCode cmd args mempty
 
 rightOrNothing :: Either a b -> Maybe b
 rightOrNothing = either (const Nothing) Just
