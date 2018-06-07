@@ -4,7 +4,6 @@ import System.IO.Unsafe (unsafeInterleaveIO)
 
 import Utils (stringsFromStatus, Hash(MkHash))
 
-{- import Filesystem.Path.Rules (encodeString, posix) -}
 import Filesystem.Path.CurrentOS (encodeString)
 import Data.Git.Storage (findRepoMaybe)
 import Data.Git.Named
@@ -15,6 +14,9 @@ import System.Directory (doesFileExist)
 import System.FilePath ((</>))
 import Data.Maybe (fromMaybe)
 import Data.Char (isSpace)
+import Data.List (isInfixOf, isPrefixOf)
+import Data.List.Split (splitOn)
+import System.Environment (lookupEnv)
 
 import qualified Control.Exception.Base as E
 
@@ -22,26 +24,29 @@ import qualified Control.Exception.Base as E
 
 successOrNothing :: (ExitCode, a, b) -> Maybe a
 successOrNothing (exitCode, output, _)
-     | exitCode == ExitSuccess = Just output
-     | otherwise = Nothing
+    | exitCode == ExitSuccess = Just output
+    | otherwise = Nothing
 
 safeRun :: String -> [String] -> IO (Maybe String)
 safeRun cmd args =
-        successOrNothing <$> readProcessWithExitCode cmd args mempty
+    successOrNothing <$> readProcessWithExitCode cmd args mempty
 
 gitrevparse :: IO (Maybe Hash)
 gitrevparse = do
-        mresult <- safeRun "git" ["rev-parse", "--short", "HEAD"]
-        return $ MkHash . init <$> mresult
+    mresult <- safeRun "git" ["rev-parse", "--short", "HEAD"]
+    return $ MkHash . init <$> mresult
 
 getStashCount :: FilePath -> IO Int
-getStashCount repo = countLinesInFile $ repo </> "logs" </> "refs" </> "stash"
+getStashCount repo =
+    countLinesInFile $ repo </> "logs" </> "refs" </> "stash"
     where
         countLinesInFile :: String -> IO Int
         countLinesInFile f = length . lines <$> E.catch (readFile f) readHandler
 
 readHandler :: IOError -> IO String
 readHandler _ = pure mempty
+
+strip = reverse . dropWhile isSpace . reverse
 
 -- | Determine the rebase status of this repostitory and return it.
 -- | Args: git root
@@ -50,14 +55,12 @@ readHandler _ = pure mempty
 -- |    - "1/4": Rebase in progress, commit 1 of 4
 rebaseProgess :: FilePath -> IO String
 rebaseProgess repo = do
-            let readRebase = readFile . ((repo </> "rebase-apply") </>)
-            next <- E.catch (readRebase "next") readHandler
-            last <- E.catch (readRebase "last") readHandler
-            if length (last ++ next) < 1
-                then pure "0"
-                else pure $ strip last ++ "/" ++ strip next
-            where
-                strip = reverse . dropWhile isSpace . reverse
+    let readRebase = readFile . ((repo </> "rebase-apply") </>)
+    next <- E.catch (readRebase "next") readHandler
+    last <- E.catch (readRebase "last") readHandler
+    if length (last ++ next) < 1
+        then pure "0"
+        else pure $ strip last ++ "/" ++ strip next
 
 isMergeInProgess :: FilePath -> IO Bool
 isMergeInProgess = doesFileExist . (</> "MERGE_HEAD")
@@ -65,6 +68,25 @@ isMergeInProgess = doesFileExist . (</> "MERGE_HEAD")
 fromBool :: Num a => Bool -> a
 fromBool False  = 0
 fromBool True   = 1
+
+parseBranch :: String -> FilePath -> IO (String, String, Int)
+parseBranch status repo
+    | "..." `isInfixOf` status = do
+            let getBranch = splitOn "..." . head . tail $ words status
+            let branch = head getBranch
+            let upstream = last getBranch
+            pure (branch, upstream, 0)
+    | "no branch" `isInfixOf` status = do
+            let readHead = readFile $ repo </> "HEAD"
+            head <- E.catch readHead readHandler
+            let hashPrefixEnv = "ZSH_THEME_GIT_PROMPT_HASH_PREFIX"
+            sym_prehash <-  fromMaybe ":" <$> lookupEnv hashPrefixEnv
+            pure (sym_prehash ++ take 7 head, "..", 0)
+    | "Initial Commit" `isPrefixOf` status
+        || isPrefixOf "No commits yet" status = do
+            let branch = last $ words status
+            pure (branch, "..", 1)
+    | otherwise = pure (head . tail $ words status, "..", 1)
 
 parse :: String -> IO ()
 parse status = do
@@ -74,8 +96,10 @@ parse status = do
     merge <- isMergeInProgess  repo
     rebase <- rebaseProgess repo
     mhash <- unsafeInterleaveIO gitrevparse
+    (branch, upstream, local) <- parseBranch status repo
     let parseStatus =  maybe mempty unwords . stringsFromStatus mhash
-    let echo = putStr . (' ' :) . show
+    let echo = putStr . (' ' :)
+
     -- 0. The branch.
     -- 1. If branch is tracked upstream, number of commits behind.
     -- 2. If branch is tracked upstream, number of commits ahead.
@@ -85,16 +109,16 @@ parse status = do
     -- 6. The number of untracked files (does not include ignored).
     putStr $ parseStatus status -- e.g. master 0 0 0 0 0 0
     -- 7. The number of stashes on the current repository.
-    echo stashCount
+    echo $ show stashCount
     -- 8. 1 iff we are on a branch and that branch has no upstream tracking set.
-    -- TODO implement
+    echo $ show local
     -- 9. The name of the upstream remote/branch set to track, e.g. origin/master
-    -- TODO implement
-    -- 10. 1 if and only if engaged in a merge operation. 0 otherwise.
-    echo $ fromBool merge
+    echo upstream
+    -- 10. 1 iff engaged in a merge operation. 0 otherwise.
+    echo . show $ fromBool merge
     -- 11. rebase indicator, format m/n, m is the current commit we are checked
     --     out on to resolve /  n is the total no of commits to, 0 otherwise.
-    putStr $ " " ++ rebase
+    echo rebase
 
 main :: IO ()
 main = do

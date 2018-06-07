@@ -3,7 +3,6 @@ module Utils where
 import BranchParse (Branch(MkBranch), MBranchInfo, BranchInfo(MkBranchInfo), branchInfo, getDistance, pairFromDistance, Remote)
 import StatusParse (Status(MakeStatus), processStatus)
 
-
 {- Type aliases -}
 
 newtype Hash = MkHash {getHash :: String}
