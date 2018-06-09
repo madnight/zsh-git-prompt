@@ -22,15 +22,7 @@ matrix:
     # You could also do things like change flags or
     # use --stack-yaml to point to a different file.
     - env: ARGS=""
-      python: "2.7"
-    - env: ARGS="--resolver lts-2"
-      python: "2.7"
-    - env: ARGS="--resolver lts-3"
-      python: "2.7"
-    - env: ARGS="--resolver lts"
-      python: "2.7"
-    - env: ARGS="--resolver nightly"
-      python: "2.7"
+      ghc: "8.2.2"
 
 # # GHC depends on GMP. You can add other dependencies here as well.
 addons:
