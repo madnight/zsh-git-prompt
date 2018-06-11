@@ -7,6 +7,7 @@ import Text.Parsec (digit, string, char, eof, anyChar,
 import Text.Parsec.String (Parser)
 import Test.QuickCheck (Arbitrary(arbitrary), oneof, getPositive, suchThat)
 import Data.List (isPrefixOf, isSuffixOf, isInfixOf)
+import Control.Monad (void)
 
 {-
  The idea is to parse the first line of the git status command.
@@ -49,9 +50,7 @@ isValidBranch b = not (or (isForbidden b)) where
 
 instance Arbitrary Branch where
     arbitrary =
-        do -- Gen
-            branch <- arbitrary `suchThat` isValidBranch
-            return (MkBranch branch)
+        MkBranch <$> arbitrary `suchThat` isValidBranch
 
 data Remote = MkRemote Branch (Maybe Distance) deriving (Eq, Show)
 
@@ -63,89 +62,74 @@ data BranchInfo = MkBranchInfo Branch (Maybe Remote) deriving (Eq, Show)
 type MBranchInfo = Maybe BranchInfo
 
 newRepo :: Parser MBranchInfo
-newRepo =
-    do -- Parsec
-        string "Initial commit on "
-        branchOnly
+newRepo = string "Initial commit on " >> branchOnly
 
 noBranch :: Parser MBranchInfo
 noBranch =
-    do -- Parsec
-        manyTill anyChar (try (string " (no branch)"))
-        eof
-        return Nothing
+    manyTill anyChar (try (string " (no branch)")) >> eof >> pure Nothing
 
 trackedBranch :: Parser Branch
-trackedBranch =
-        do -- Parsec
-            b <- manyTill anyChar (try (string "..."))
-            return (MkBranch b)
+trackedBranch = MkBranch <$> manyTill anyChar (try (string "..."))
 
 branchRemoteTracking :: Parser MBranchInfo
-branchRemoteTracking =
-    do -- Parsec
-        branch <- trackedBranch
-        tracking <- many (noneOf " ")
-        char ' '
-        behead <- inBrackets
-        let remote = MkRemote (MkBranch tracking) (Just behead)
-        let bi = MkBranchInfo branch  (Just remote)
-        return (Just bi)
+branchRemoteTracking = do
+    branch <- trackedBranch
+    tracking <- many (noneOf " ")
+    void $ char ' '
+    behead <- inBrackets
+    let remote = MkRemote (MkBranch tracking) (Just behead)
+    let bi = MkBranchInfo branch  (Just remote)
+    return (Just bi)
 
 
 branchRemote :: Parser MBranchInfo
-branchRemote =
-    do -- Parsec
-        branch <- trackedBranch
-        tracking <- many (noneOf " ")
-        eof
-        let remote = MkRemote (MkBranch tracking) Nothing
-        let bi = MkBranchInfo branch (Just remote)
-        return (Just bi)
+branchRemote = do
+    branch <- trackedBranch
+    tracking <- many (noneOf " ")
+    eof
+    let remote = MkRemote (MkBranch tracking) Nothing
+    let bi = MkBranchInfo branch (Just remote)
+    return (Just bi)
 
 branchOnly :: Parser MBranchInfo
-branchOnly =
-    do -- Parsec
-        branch <- many (noneOf " ")
-        eof
-        let bi = MkBranchInfo (MkBranch branch) Nothing
-        return (Just bi)
+branchOnly = do
+    branch <- many $ noneOf " "
+    eof
+    let bi = MkBranchInfo (MkBranch branch) Nothing
+    return (Just bi)
 
 branchParser :: Parser MBranchInfo
-branchParser =
-            try noBranch
+branchParser = try noBranch
         <|> try newRepo
         <|> try branchRemoteTracking
         <|> try branchRemote
         <|> branchOnly
 
 branchParser' :: Parser MBranchInfo
-branchParser' =
-    do -- Parsec
-        string "## "
-        branchParser
+branchParser' = string "## " >> branchParser
 
 inBrackets :: Parser Distance
-inBrackets = between (char '[') (char ']') (behind <|> try aheadBehind <|> ahead)
+inBrackets =
+    between (char '[') (char ']') $ behind <|> try aheadBehind <|> ahead
 
 makeAheadBehind :: String -> (Int -> Distance) -> Parser Distance
-makeAheadBehind name constructor =
-    do -- Parsec
-        string (name ++ " ")
-        dist <- many1 digit
-        return (constructor (read dist))
+makeAheadBehind name constructor = do
+    void $ string (name ++ " ")
+    dist <- many1 digit
+    return (constructor (read dist))
 
 ahead :: Parser Distance
 ahead = makeAheadBehind "ahead" Ahead
+
 behind :: Parser Distance
 behind = makeAheadBehind "behind" Behind
+
 aheadBehind :: Parser Distance
-aheadBehind =
-    do -- Parsec
-        Ahead aheadBy <- ahead
-        string ", "
-        Behind behindBy <- behind
-        return (AheadBehind aheadBy behindBy)
+aheadBehind = do
+    Ahead aheadBy <- ahead
+    void $ string ", "
+    Behind behindBy <- behind
+    return (AheadBehind aheadBy behindBy)
 
 branchInfo :: String -> Either ParseError MBranchInfo
 branchInfo = parse branchParser' ""

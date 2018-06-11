@@ -5,7 +5,6 @@ import StatusParse (Status(MakeStatus), processStatus)
 
 import System.Process (readProcessWithExitCode)
 import System.Exit (ExitCode(ExitSuccess))
-import System.IO.Unsafe (unsafeInterleaveIO)
 import Data.Char (isSpace)
 
 {- Type aliases -}
