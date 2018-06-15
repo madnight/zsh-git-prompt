@@ -41,7 +41,7 @@ rebaseProgess repo = do
     last' <- E.catch (readRebase "last") readHandler
     if length (last' ++ next) < 1
         then pure "0"
-        else pure $ strip last' ++ "/" ++ strip next
+        else pure $ strip next ++ "/" ++ strip last'
 
 isMergeInProgess :: FilePath -> IO Bool
 isMergeInProgess = doesFileExist . (</> "MERGE_HEAD")
