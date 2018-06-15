@@ -13,6 +13,7 @@ import System.FilePath ((</>))
 import System.IO.Unsafe (unsafeInterleaveIO)
 import System.Posix.IO (stdInput)
 import System.Posix.Terminal (queryTerminal)
+import System.Exit (exitSuccess)
 
 import qualified Control.Exception.Base as E
 
@@ -103,6 +104,6 @@ main = do
         then do -- run status command
             status <- safeRun "git" ["status", "--porcelain", "--branch"]
             case status of
-                Nothing -> error "fatal: not a git repository"
+                Nothing -> exitSuccess
                 Just s -> parse s
         else getContents >>= parse -- get status from stdin
