@@ -47,7 +47,7 @@ script:
   - if [ "$ARGS" = "python" ]; then
       tox;
     else
-      stack $ARGS --no-terminal --install-ghc test --haddock;
+      stack $ARGS --no-terminal --install-ghc test --haddock --coverage;
     fi
 
 # Caching so the next build will be fast too.
