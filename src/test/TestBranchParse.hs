@@ -9,10 +9,10 @@ import Control.Monad (forM, unless)
 
 checkRight :: MBranchInfo -> String -> Bool
 checkRight b s = expectRight b (branchInfo ("## " ++ s))
-	where
-		expectRight expected computed = case computed of
-			Left _ -> False
-			Right res -> res == expected
+    where
+        expectRight expected computed = case computed of
+            Left _ -> False
+            Right res -> res == expected
 
 -- gitRep :: BranchInfo -> String
 -- gitRep (MkBranchInfo (MkBranch branch) Nothing) = branch
@@ -23,54 +23,54 @@ checkRight b s = expectRight b (branchInfo ("## " ++ s))
 
 propNoBranch :: Branch -> Bool
 propNoBranch b =
-		checkRight
-			Nothing
-			(show b ++ " (no branch)")
+        checkRight
+            Nothing
+            (show b ++ " (no branch)")
 
 propNewRepo :: Branch -> Bool
 propNewRepo b =
-		checkRight
-			(Just (MkBranchInfo b Nothing))
-			("Initial commit on " ++ show b)
+        checkRight
+            (Just (MkBranchInfo b Nothing))
+            ("Initial commit on " ++ show b)
 
 propBranchOnly :: Branch -> Bool
 propBranchOnly b =
-		checkRight
-			(Just (MkBranchInfo b Nothing))
-			(show b)
+        checkRight
+            (Just (MkBranchInfo b Nothing))
+            (show b)
 
 propBranchRemote :: Branch -> Branch -> Bool
 propBranchRemote b t =
-		checkRight
-			(Just (MkBranchInfo b remote))
-			(show b ++"..." ++ show t)
-		where
-			remote = Just (MkRemote t Nothing)
+        checkRight
+            (Just (MkBranchInfo b remote))
+            (show b ++"..." ++ show t)
+        where
+            remote = Just (MkRemote t Nothing)
 
 propBranchRemoteTracking :: Branch -> Branch -> Distance -> Bool
 propBranchRemoteTracking b t distance =
-		checkRight
-			(Just (MkBranchInfo b remote))
-		 	(show b ++ "..." ++ show t ++ " " ++ show distance)
-		where
-			remote = Just (MkRemote t (Just distance))
+        checkRight
+            (Just (MkBranchInfo b remote))
+            (show b ++ "..." ++ show t ++ " " ++ show distance)
+        where
+            remote = Just (MkRemote t (Just distance))
 
 
 allTests :: [Property]
 allTests = [
-				property propNoBranch,
-				property propNewRepo,
-				property propBranchOnly,
-				property propBranchRemote,
-				property propBranchRemoteTracking
-				]
+                property propNoBranch,
+                property propNewRepo,
+                property propBranchOnly,
+                property propBranchRemote,
+                property propBranchRemoteTracking
+                ]
 
 runTests :: IO [Result]
 runTests = forM allTests runTest
-	where
-		runTest = quickCheckWithResult stdArgs { maxSuccess = 256 }
+    where
+        runTest = quickCheckWithResult stdArgs { maxSuccess = 256 }
 
 main :: IO()
 main = do -- IO
-	results <- runTests
-	unless (all isSuccess results) exitFailure
+    results <- runTests
+    unless (all isSuccess results) exitFailure
