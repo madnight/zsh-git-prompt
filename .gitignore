@@ -4,6 +4,7 @@
 # Directories
 src/.bin
 .cache/
+**/.hpc
 **/__pycache__
 .pytest_cache
 **/.stack-work
