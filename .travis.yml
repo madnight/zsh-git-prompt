@@ -32,6 +32,9 @@ addons:
 
 # Download and unpack the stack executable for haskell, else pip deps.
 install:
+  - sudo add-apt-repository ppa:duggan/bats --yes
+  - sudo apt-get update -qq
+  - sudo apt-get install -qq bats
   - if [ "$ARGS" = "python" ]; then
       pip install tox;
     else
@@ -48,6 +51,9 @@ script:
       tox;
     else
       stack $ARGS --no-terminal --install-ghc test --haddock --coverage;
+      export PATH=/home/travis/build/madnight/zsh-git-prompt/src/.bin:$PATH;
+      stack install;
+      bats src/test/test.sh;
     fi
 
 # Caching so the next build will be fast too.
