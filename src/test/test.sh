@@ -110,7 +110,7 @@ teardown() {
     git checkout master
     echo "A different line" >> first
     git add first
-    git ci -m "A different line"
+    git commit -m "A different line"
     git merge dev || true
 
     run $EXE
