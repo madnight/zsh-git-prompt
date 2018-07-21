@@ -1,6 +1,7 @@
 import Utils (safeRun, stringsFromStatus, readHandler,
   fromBool, strip, Hash(MkHash))
 
+import Control.Monad (when)
 import Data.Git.Ref()
 import Data.Git.Storage (findRepoMaybe)
 import Data.List (isInfixOf, isPrefixOf)
@@ -69,6 +70,7 @@ parse :: String -> IO ()
 parse status = do
     maybeRepo <- (fmap . fmap) encodeString findRepoMaybe
     let repo = fromMaybe mempty maybeRepo
+    when (null repo) $ exitSuccess
     stashCount <- getStashCount repo
     merge <- isMergeInProgess  repo
     rebase <- rebaseProgess repo
